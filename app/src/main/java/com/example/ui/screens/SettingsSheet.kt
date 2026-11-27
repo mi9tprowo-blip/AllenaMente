@@ -79,12 +79,12 @@ fun SettingsBottomSheet(
     onToggleZenMode: (Boolean) -> Unit,
     onToggleReminder: (Boolean) -> Unit,
     onOpenTutorial: () -> Unit,
+    onOpenPrivacyPolicy: () -> Unit,
     onExportGdprJson: () -> Unit,
     onConfirmFullReset: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val context = LocalContext.current
-    var showPrivacyDialog by remember { mutableStateOf(false) }
     var deleteConfirmStep by remember { mutableIntStateOf(0) } // 0=none, 1=step1, 2=step2 final
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -281,11 +281,12 @@ fun SettingsBottomSheet(
             }
 
             OutlinedButton(
-                onClick = { showPrivacyDialog = true },
+                onClick = onOpenPrivacyPolicy,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
+                    .testTag("settings_privacy_policy_button")
             ) {
                 Icon(Icons.Rounded.Policy, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -324,24 +325,6 @@ fun SettingsBottomSheet(
 
             Spacer(Modifier.height(22.dp))
         }
-    }
-
-    if (showPrivacyDialog) {
-        AlertDialog(
-            onDismissRequest = { showPrivacyDialog = false },
-            title = { Text("Privacy & Disclaimer Non-Clinico") },
-            text = {
-                Text(
-                    "AllenaMente è un'applicazione di benessere cognitivo e intrattenimento ludico.\n\n" +
-                        "• Nessun claim medico: i punteggi, il Radar a 4 Assi, l'Indice di Velocità (pt) e i consigli del Coach AI hanno scopo esclusivamente ricreativo e non costituiscono diagnosi né terapia.\n" +
-                        "• Dati sicuri: i tuoi progressi sono isolati sul tuo account Google tramite regole Firestore zero-trust, senza tracker pubblicitari di terze parti.\n" +
-                        "• Diritti GDPR: puoi esportare l'intero archivio JSON o cancellare definitivamente tutti i dati in qualsiasi momento."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showPrivacyDialog = false }) { Text("Ho capito") }
-            }
-        )
     }
 
     // 2-Step GDPR Reset Confirmation Dialogs

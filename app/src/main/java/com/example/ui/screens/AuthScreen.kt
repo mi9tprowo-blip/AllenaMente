@@ -68,6 +68,7 @@ import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -77,7 +78,8 @@ private const val PROVISIONAL_ACCESS_CODE = "0000"
 @Composable
 fun AuthScreen(
     onAuthSuccess: () -> Unit,
-    onProvisionalAccess: () -> Unit = {}
+    onProvisionalAccess: () -> Unit = {},
+    onOpenPrivacyPolicy: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -424,6 +426,18 @@ fun AuthScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
+
+            Spacer(Modifier.height(4.dp))
+
+            TextButton(
+                onClick = onOpenPrivacyPolicy,
+                modifier = Modifier.testTag("auth_privacy_policy_button")
+            ) {
+                Text(
+                    text = stringResource(R.string.privacy_link_button),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
         }
     }
 }

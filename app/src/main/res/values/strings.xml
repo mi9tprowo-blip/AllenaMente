@@ -43,4 +43,24 @@
     <string name="provisional_mode_invalid_pin">Codice non valido. Inserisci 0000 per accedere in modalità provvisoria.</string>
     <string name="provisional_mode_banner">Modalità provvisoria • Dati salvati solo per questa sessione</string>
     <string name="provisional_mode_exit">Esci</string>
+    <string name="privacy_policy_title">Informativa sulla Privacy</string>
+    <string name="privacy_policy_updated">Ultimo aggiornamento: 27 Novembre 2026</string>
+    <string name="privacy_policy_subtitle">Trasparenza sui dati, sicurezza Firebase, diritti GDPR e disclaimer non-clinico conforme a Google Play.</string>
+    <string name="privacy_policy_url">https://github.com/mi9tprowo-blip/AllenaMente/blob/main/marketing/PRIVACY_POLICY.md</string>
+    <string name="privacy_contact_email">mi9tprowo@gmail.com</string>
+    <string name="privacy_open_full_doc">Apri documentazione privacy online</string>
+    <string name="privacy_contact_button">Contatta il supporto privacy</string>
+    <string name="privacy_link_button">Informativa sulla Privacy</string>
+    <string name="privacy_back_description">Torna indietro</string>
+    <string name="privacy_section_data_title">Dati raccolti e finalità</string>
+    <string name="privacy_section_data_body">AllenaMente raccoglie solo i dati essenziali al funzionamento: identificativo Google Sign-In (UID, nome visualizzato, email), preferenze dell\'app e progressi di gioco (punteggi dei 4 pilastri, serie e sessioni). Le analisi del Coach AI elaborano esclusivamente il riepilogo aggregato su tua richiesta. In modalità provvisoria nessun dato viene salvato sul cloud.</string>
+    <string name="privacy_section_permissions_title">Permessi minimi del dispositivo</string>
+    <string name="privacy_section_permissions_body">L\'app utilizza la connessione Internet per sincronizzazione e Coach AI, e il permesso facoltativo per le notifiche solo se attivi il promemoria quotidiano. Non richiede mai accesso a archivio esterno, foto, fotocamera, microfono o posizione.</string>
+    <string name="privacy_section_security_title">Sicurezza e zero tracker pubblicitari</string>
+    <string name="privacy_section_security_body">Tutti i dati sono crittografati in transito (HTTPS/TLS) e isolati per singolo utente su Google Firebase Firestore con regole zero-trust. AllenaMente non integra SDK pubblicitari e non vende né cede dati a terze parti.</string>
+    <string name="privacy_section_gdpr_title">Diritti GDPR ed eliminazione dati</string>
+    <string name="privacy_section_gdpr_body">Dalla sezione Impostazioni puoi esportare in qualsiasi momento tutti i tuoi dati in formato JSON oppure eliminare definitivamente profilo, statistiche e sessioni dal cloud in 2 passaggi.</string>
+    <string name="privacy_section_disclaimer_title">Disclaimer non-clinico</string>
+    <string name="privacy_section_disclaimer_body">AllenaMente è un\'app di benessere cognitivo e intrattenimento ludico. Punteggi, Radar a 4 Assi, Indice di Velocità e consigli del Coach AI non hanno valenza medica né diagnostica.</string>
+    <string name="privacy_open_error">Impossibile aprire il link sul dispositivo. Copia l\'URL: %1$s</string>
 </resources>

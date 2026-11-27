@@ -20,21 +20,36 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Set up Android SDK & Licenses
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >
+            platform-tools
+            platforms;android-36
+            platforms;android-36.1
+            build-tools;36.0.0
+            build-tools;36.1.0
+        continue-on-error: true
+
+      - name: Accept Android SDK Licenses (fallback)
+        run: |
+          SDK_BIN="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDK_BIN" ]; then
+            yes | "$SDK_BIN" --licenses > /dev/null 2>&1 || true
+          fi
+
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.3.1
 
-      - name: Accept Android SDK licenses
+      - name: Restore debug.keystore & .env placeholder
         run: |
-          if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
           fi
-
-      - name: Restore debug.keystore for Firebase-aligned debug APK
-        run: |
           if [ -f debug.keystore.base64 ]; then
-            base64 --decode debug.keystore.base64 > debug.keystore
+            tr -d '\r\n ' < debug.keystore.base64 | base64 --decode > debug.keystore
           elif [ ! -f debug.keystore ]; then
             keytool -genkeypair -v \
               -keystore debug.keystore \
@@ -46,10 +61,10 @@ jobs:
           fi
 
       - name: Run AllenaMente unit tests
-        run: gradle :app:testDebugUnitTest --tests com.example.AllenaMenteEngineTest --no-daemon
+        run: gradle :app:testDebugUnitTest --tests com.example.AllenaMenteEngineTest --no-daemon --stacktrace
 
       - name: Build Debug APK
-        run: gradle :app:assembleDebug --no-daemon
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Rename Debug APK for easy download
         run: |
@@ -85,9 +100,9 @@ jobs:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
+          echo "$RELEASE_KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > my-upload-key.jks
           export KEYSTORE_PATH="$PWD/my-upload-key.jks"
-          gradle :app:bundleRelease :app:assembleRelease --no-daemon
+          gradle :app:bundleRelease :app:assembleRelease --no-daemon --stacktrace
           cp app/build/outputs/bundle/release/app-release.aab dist/AllenaMente-release.aab
           cp app/build/outputs/apk/release/app-release.apk dist/AllenaMente-release.apk
           rm -f my-upload-key.jks

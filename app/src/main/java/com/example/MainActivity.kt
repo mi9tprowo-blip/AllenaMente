@@ -85,6 +85,7 @@ import com.example.ui.screens.GymCatalogScreen
 import com.example.ui.screens.HomeDashboardScreen
 import com.example.ui.screens.InitialCalibrationDialog
 import com.example.ui.screens.OnboardingTermsDialog
+import com.example.ui.screens.PrivacyPolicyScreen
 import com.example.ui.screens.ResultsDashboardScreen
 import com.example.ui.screens.SettingsBottomSheet
 import com.example.ui.theme.AllenaMenteTheme
@@ -168,23 +169,34 @@ private fun AppRoot(
     }
 
     val user = currentUser
+    var showAuthPrivacyPolicy by remember { mutableStateOf(false) }
+
     if (user == null && !isProvisionalMode) {
         AllenaMenteTheme(appTheme = AppTheme.ZEN_PEBBLE) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                if (!checkedAutoSignIn) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                when {
+                    showAuthPrivacyPolicy -> {
+                        PrivacyPolicyScreen(onBack = { showAuthPrivacyPolicy = false })
                     }
-                } else {
-                    AuthScreen(
-                        onAuthSuccess = {
-                            isProvisionalMode = false
-                            currentUser = Firebase.auth.currentUser
-                        },
-                        onProvisionalAccess = {
-                            isProvisionalMode = true
+                    !checkedAutoSignIn -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
                         }
-                    )
+                    }
+                    else -> {
+                        AuthScreen(
+                            onAuthSuccess = {
+                                isProvisionalMode = false
+                                currentUser = Firebase.auth.currentUser
+                            },
+                            onProvisionalAccess = {
+                                isProvisionalMode = true
+                            },
+                            onOpenPrivacyPolicy = {
+                                showAuthPrivacyPolicy = true
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -269,6 +281,7 @@ private fun AuthenticatedAllenaMenteShell(
     var selectedTab by remember { mutableIntStateOf(0) } // 0=Home, 1=Esercizi, 2=Risultati
     var showSettings by remember { mutableStateOf(false) }
     var showTutorial by remember { mutableStateOf(false) }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(snackbarMsg) {
@@ -279,6 +292,11 @@ private fun AuthenticatedAllenaMenteShell(
     }
 
     AllenaMenteTheme(appTheme = profile.themeEnum()) {
+        if (showPrivacyPolicy) {
+            PrivacyPolicyScreen(onBack = { showPrivacyPolicy = false })
+            return@AllenaMenteTheme
+        }
+
         val currentGame = activeGame
         if (currentGame != null) {
             GameSessionScreen(
@@ -523,6 +541,10 @@ private fun AuthenticatedAllenaMenteShell(
                 onOpenTutorial = {
                     showSettings = false
                     showTutorial = true
+                },
+                onOpenPrivacyPolicy = {
+                    showSettings = false
+                    showPrivacyPolicy = true
                 },
                 onExportGdprJson = {
                     viewModel.exportUserDataJson { json ->

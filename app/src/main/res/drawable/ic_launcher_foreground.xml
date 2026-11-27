@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/ic_allenamente_icon_1795705680906"
+        android:drawable="@drawable/ic_allenamente_emblem"
         android:gravity="center" />
 </layer-list>
