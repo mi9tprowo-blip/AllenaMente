@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.data.firebase.AiCoachService
+import com.example.data.firebase.AnalyticsSanitizer
 import com.example.data.model.CognitivePillar
 import com.example.data.model.DailyStat
 import com.example.data.model.GAMES_CATALOG
@@ -128,5 +129,19 @@ class AllenaMenteEngineTest {
         )
         val insight = CognitiveBalanceEngine.evaluate(profile, emptyList(), todayStat, "2026-11-26")
         assertEquals(CognitivePillar.EMPATHY, insight.focusPillar)
+    }
+
+    @Test
+    fun `AnalyticsSanitizer enforces Firebase Analytics name and length limits`() {
+        assertEquals("neural_circuit", AnalyticsSanitizer.sanitizeName("Neural-Circuit!"))
+        assertEquals("ev_123_test", AnalyticsSanitizer.sanitizeName("123-Test"))
+        val longName = AnalyticsSanitizer.sanitizeName("a".repeat(60))
+        assertEquals(40, longName.length)
+
+        val longProp = AnalyticsSanitizer.sanitizeUserPropertyValue("x".repeat(60))
+        assertEquals(36, longProp.length)
+
+        val longParam = AnalyticsSanitizer.sanitizeParamValue("y".repeat(140))
+        assertEquals(100, longParam.length)
     }
 }

@@ -61,6 +61,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.data.firebase.AiCoachService
 import com.example.data.firebase.AllenaMenteRepository
+import com.example.data.firebase.AnalyticsTracker
+import com.example.data.firebase.FirebaseAnalyticsTracker
+import com.example.data.firebase.GameLaunchSource
 import com.example.data.firebase.attemptAutoSignIn
 import com.example.data.firebase.configureAppCheck
 import com.example.data.firebase.signOutFromGoogle
@@ -91,6 +94,7 @@ import com.example.ui.screens.SettingsBottomSheet
 import com.example.ui.theme.AllenaMenteTheme
 import com.example.viewmodel.AllenaMenteViewModel
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -100,18 +104,24 @@ private const val PROVISIONAL_SESSION_KEY = "provisional_local_session"
 class MainActivity : ComponentActivity() {
 
     private var deepLinkDuelState by mutableStateOf<DuelChallenge?>(null)
+    private lateinit var analyticsTracker: AnalyticsTracker
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // STEP 1 (MANDATORY): Configure Firebase App Check with launch intent BEFORE UI / ViewModels
         configureAppCheck(this, intent)
+        analyticsTracker = FirebaseAnalyticsTracker(applicationContext)
 
         deepLinkDuelState = DuelLinkCodec.parseUri(intent?.data)
+        deepLinkDuelState?.let { duel ->
+            analyticsTracker.logDuelReceived(duel.gameId, duel.level)
+        }
         enableEdgeToEdge()
 
         setContent {
             AppRoot(
+                analytics = analyticsTracker,
                 incomingDuel = deepLinkDuelState,
                 onConsumeIncomingDuel = { deepLinkDuelState = null }
             )
@@ -122,36 +132,49 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         DuelLinkCodec.parseUri(intent.data)?.let { duel ->
             deepLinkDuelState = duel
+            if (::analyticsTracker.isInitialized) {
+                analyticsTracker.logDuelReceived(duel.gameId, duel.level)
+            }
         }
     }
 }
 
 @Composable
 private fun AppRoot(
+    analytics: AnalyticsTracker,
     incomingDuel: DuelChallenge?,
     onConsumeIncomingDuel: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
-
-    var currentUser by remember { mutableStateOf(Firebase.auth.currentUser) }
-    var isProvisionalMode by remember { mutableStateOf(false) }
-    var checkedAutoSignIn by remember { mutableStateOf(currentUser != null) }
-
-    DisposableEffect(Unit) {
-        val listener = FirebaseAuth.AuthStateListener { auth ->
-            currentUser = auth.currentUser
-            if (auth.currentUser != null) {
-                isProvisionalMode = false
-            }
-        }
-        Firebase.auth.addAuthStateListener(listener)
-        onDispose { Firebase.auth.removeAuthStateListener(listener) }
+    val firebaseReady = remember(context) {
+        runCatching { FirebaseApp.getApps(context).isNotEmpty() }.getOrDefault(false)
     }
 
-    LaunchedEffect(Unit) {
-        if (currentUser == null) {
+    var currentUser by remember {
+        mutableStateOf(if (firebaseReady) runCatching { Firebase.auth.currentUser }.getOrNull() else null)
+    }
+    var isProvisionalMode by remember { mutableStateOf(false) }
+    var checkedAutoSignIn by remember { mutableStateOf(!firebaseReady || currentUser != null) }
+
+    DisposableEffect(firebaseReady) {
+        if (!firebaseReady) {
+            onDispose { }
+        } else {
+            val listener = FirebaseAuth.AuthStateListener { auth ->
+                currentUser = auth.currentUser
+                if (auth.currentUser != null) {
+                    isProvisionalMode = false
+                }
+            }
+            Firebase.auth.addAuthStateListener(listener)
+            onDispose { Firebase.auth.removeAuthStateListener(listener) }
+        }
+    }
+
+    LaunchedEffect(firebaseReady) {
+        if (firebaseReady && currentUser == null) {
             attemptAutoSignIn(
                 context = context,
                 credentialManager = credentialManager,
@@ -172,6 +195,12 @@ private fun AppRoot(
     var showAuthPrivacyPolicy by remember { mutableStateOf(false) }
 
     if (user == null && !isProvisionalMode) {
+        LaunchedEffect(showAuthPrivacyPolicy, checkedAutoSignIn) {
+            when {
+                showAuthPrivacyPolicy -> analytics.logScreenView("privacy_policy", "PrivacyPolicyScreen")
+                checkedAutoSignIn -> analytics.logScreenView("auth_screen", "AuthScreen")
+            }
+        }
         AllenaMenteTheme(appTheme = AppTheme.ZEN_PEBBLE) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 when {
@@ -186,10 +215,12 @@ private fun AppRoot(
                     else -> {
                         AuthScreen(
                             onAuthSuccess = {
+                                analytics.logLogin("google")
                                 isProvisionalMode = false
-                                currentUser = Firebase.auth.currentUser
+                                currentUser = if (firebaseReady) runCatching { Firebase.auth.currentUser }.getOrNull() else null
                             },
                             onProvisionalAccess = {
+                                analytics.logLogin("provisional_pin")
                                 isProvisionalMode = true
                             },
                             onOpenPrivacyPolicy = {
@@ -211,14 +242,19 @@ private fun AppRoot(
                 factory = viewModelFactory {
                     initializer {
                         val app = checkNotNull(this[APPLICATION_KEY])
-                        val databaseId = app.getString(R.string.firestore_database_id)
-                        val db = FirebaseFirestore.getInstance(databaseId)
+                        val repo = if (provisionalActive || !firebaseReady) {
+                            null
+                        } else {
+                            val databaseId = app.getString(R.string.firestore_database_id)
+                            AllenaMenteRepository(FirebaseFirestore.getInstance(databaseId))
+                        }
                         AllenaMenteViewModel(
-                            repository = AllenaMenteRepository(db),
+                            repository = repo,
                             aiCoachService = AiCoachService(),
                             currentUserId = sessionKey,
                             googleDisplayName = user?.displayName ?: "Tester Provvisorio",
-                            isProvisionalMode = provisionalActive
+                            isProvisionalMode = provisionalActive || !firebaseReady,
+                            analytics = analytics
                         )
                     }
                 }
@@ -233,12 +269,15 @@ private fun AppRoot(
 
             AuthenticatedAllenaMenteShell(
                 viewModel = viewModel,
+                analytics = analytics,
                 userEmail = user?.email ?: "Modalità provvisoria (locale)",
                 isProvisionalMode = provisionalActive,
                 onSignOut = {
                     if (provisionalActive) {
+                        analytics.logSignOut("provisional")
                         isProvisionalMode = false
                     } else {
+                        analytics.logSignOut("google")
                         signOutFromGoogle(credentialManager, scope) {
                             currentUser = null
                             isProvisionalMode = false
@@ -253,6 +292,7 @@ private fun AppRoot(
 @Composable
 private fun AuthenticatedAllenaMenteShell(
     viewModel: AllenaMenteViewModel,
+    analytics: AnalyticsTracker,
     userEmail: String?,
     isProvisionalMode: Boolean,
     onSignOut: () -> Unit
@@ -267,6 +307,7 @@ private fun AuthenticatedAllenaMenteShell(
     val pendingDuel by viewModel.pendingDuel.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
     val showCalibration by viewModel.showCalibrationModal.collectAsStateWithLifecycle()
+    val analyticsEnabled by viewModel.analyticsEnabled.collectAsStateWithLifecycle()
 
     val profile = (profileUi as? UiState.Success)?.data ?: UserProfile(userId = viewModel.currentUserId)
     val sessions = (sessionsUi as? UiState.Success)?.data.orEmpty()
@@ -283,6 +324,49 @@ private fun AuthenticatedAllenaMenteShell(
     var showTutorial by remember { mutableStateOf(false) }
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(
+        profile.selectedTheme,
+        profile.selectedMascot,
+        profile.zenFlowMode,
+        profile.ageCohort,
+        isProvisionalMode,
+        analyticsEnabled
+    ) {
+        if (profileUi is UiState.Success) {
+            analytics.syncUserProperties(
+                theme = profile.selectedTheme,
+                mascot = profile.selectedMascot,
+                zenMode = profile.zenFlowMode,
+                ageCohort = profile.ageCohort,
+                accountMode = if (isProvisionalMode) "provisional" else "google"
+            )
+        }
+    }
+
+    val loadedTermsAccepted = (profileUi as? UiState.Success)?.data?.termsAccepted ?: true
+    LaunchedEffect(
+        selectedTab,
+        activeGame?.gameId,
+        showPrivacyPolicy,
+        showSettings,
+        showTutorial,
+        showCalibration,
+        loadedTermsAccepted
+    ) {
+        val (screenName, screenClass) = when {
+            showPrivacyPolicy -> "privacy_policy" to "PrivacyPolicyScreen"
+            activeGame != null -> "game_${activeGame!!.gameId}" to "GameSessionScreen"
+            showTutorial -> "tutorial_dialog" to "AllenaMenteTutorialDialog"
+            showSettings -> "settings_sheet" to "SettingsBottomSheet"
+            !loadedTermsAccepted -> "onboarding_terms" to "OnboardingTermsDialog"
+            showCalibration -> "initial_calibration" to "InitialCalibrationDialog"
+            selectedTab == 0 -> "home_dashboard" to "HomeDashboardScreen"
+            selectedTab == 1 -> "gym_catalog" to "GymCatalogScreen"
+            else -> "results_dashboard" to "ResultsDashboardScreen"
+        }
+        analytics.logScreenView(screenName, screenClass)
+    }
 
     LaunchedEffect(snackbarMsg) {
         if (!snackbarMsg.isNullOrBlank()) {
@@ -312,7 +396,8 @@ private fun AuthenticatedAllenaMenteShell(
                         zenMode = currentGame.zenMode,
                         customSeed = newSeed,
                         duelChallenge = currentGame.duelChallenge,
-                        dailyCircuitStage = currentGame.dailyCircuitStage
+                        dailyCircuitStage = currentGame.dailyCircuitStage,
+                        source = GameLaunchSource.REPLAY
                     )
                 },
                 onExit = { viewModel.exitActiveGame() }
@@ -440,32 +525,47 @@ private fun AuthenticatedAllenaMenteShell(
                                         viewModel.launchGame(
                                             gameId = gameId,
                                             level = profile.unlockedLevelFor(gameId),
-                                            zenMode = profile.zenFlowMode
+                                            zenMode = profile.zenFlowMode,
+                                            source = GameLaunchSource.HOME_RECOMMENDATION
                                         )
                                     },
                                     onAcceptDuel = { duel ->
+                                        analytics.logDuelAccepted(duel.gameId, duel.level)
                                         viewModel.setIncomingDuel(null)
                                         viewModel.launchGame(
                                             gameId = duel.gameId,
                                             level = duel.level,
                                             zenMode = false,
                                             customSeed = duel.seed,
-                                            duelChallenge = duel
+                                            duelChallenge = duel,
+                                            source = GameLaunchSource.DUEL
                                         )
                                     },
-                                    onDismissDuel = { viewModel.setIncomingDuel(null) },
+                                    onDismissDuel = {
+                                        pendingDuel?.let { analytics.logDuelDismissed(it.gameId) }
+                                        viewModel.setIncomingDuel(null)
+                                    },
                                     onToggleZenMode = { enabled -> viewModel.updatePreferences(zenFlowMode = enabled) },
                                     onOpenCalibration = { viewModel.openCalibration() },
-                                    onOpenTutorial = { showTutorial = true },
+                                    onOpenTutorial = {
+                                        analytics.logTutorialBegin()
+                                        showTutorial = true
+                                    },
                                     onOpenSettings = { showSettings = true }
                                 )
 
                                 1 -> GymCatalogScreen(
                                     profile = profile,
                                     onLaunchGame = { gameId, level, zen ->
-                                        viewModel.launchGame(gameId, level, zen)
+                                        viewModel.launchGame(
+                                            gameId = gameId,
+                                            level = level,
+                                            zenMode = zen,
+                                            source = GameLaunchSource.GYM_CATALOG
+                                        )
                                     },
                                     onShareDuelChallenge = { gameId, level ->
+                                        analytics.logShare("duel_challenge", "${gameId}_lv$level")
                                         val seed = Mulberry32.seedFor(gameId, level, (System.currentTimeMillis() and 0xFFFFFF).toInt())
                                         val msg = DuelLinkCodec.buildShareMessage(
                                             gameId = gameId,
@@ -495,8 +595,15 @@ private fun AuthenticatedAllenaMenteShell(
                                         viewModel.launchGame(
                                             gameId = recId,
                                             level = profile.unlockedLevelFor(recId),
-                                            zenMode = profile.zenFlowMode
+                                            zenMode = profile.zenFlowMode,
+                                            source = GameLaunchSource.AI_COACH
                                         )
+                                    },
+                                    onToggleDeepDive = { expanded ->
+                                        analytics.logResultsDeepDiveToggled(expanded)
+                                    },
+                                    onShareNeuralPass = {
+                                        analytics.logShare("neural_pass_png", "harmony_${balanceInsight.balanceIndex}")
                                     }
                                 )
                             }
@@ -525,7 +632,12 @@ private fun AuthenticatedAllenaMenteShell(
         }
 
         if (showTutorial) {
-            AllenaMenteTutorialDialog(onDismiss = { showTutorial = false })
+            AllenaMenteTutorialDialog(
+                onDismiss = {
+                    analytics.logTutorialComplete()
+                    showTutorial = false
+                }
+            )
         }
 
         if (showSettings) {
@@ -538,8 +650,11 @@ private fun AuthenticatedAllenaMenteShell(
                 onToggleSound = { enabled -> viewModel.updatePreferences(soundEnabled = enabled) },
                 onToggleZenMode = { enabled -> viewModel.updatePreferences(zenFlowMode = enabled) },
                 onToggleReminder = { enabled -> viewModel.updatePreferences(reminderEnabled = enabled) },
+                analyticsEnabled = analyticsEnabled,
+                onToggleAnalytics = { enabled -> viewModel.setAnalyticsEnabled(enabled) },
                 onOpenTutorial = {
                     showSettings = false
+                    analytics.logTutorialBegin()
                     showTutorial = true
                 },
                 onOpenPrivacyPolicy = {
@@ -547,6 +662,7 @@ private fun AuthenticatedAllenaMenteShell(
                     showPrivacyPolicy = true
                 },
                 onExportGdprJson = {
+                    analytics.logShare("gdpr_export_json", "user_data")
                     viewModel.exportUserDataJson { json ->
                         val send = Intent(Intent.ACTION_SEND).apply {
                             type = "application/json"

@@ -14,6 +14,7 @@ AllenaMente riduce al minimo i dati trattati:
 * **Dati di Autenticazione (Google Sign-In / Firebase Authentication):** identificativo univoco utente (UID), nome visualizzato e indirizzo email, utilizzati esclusivamente per creare il tuo profilo privato e sincronizzare i progressi tra dispositivi.
 * **Dati di Utilizzo e Progressi (Firebase Firestore):** punteggi dei 4 pilastri, serie attiva, livelli sbloccati, storico sintetico delle sessioni di gioco e preferenze di personalizzazione (tema, mascotte, audio, modalità Flusso Zen, fascia d'età selezionata).
 * **Coach AI (Firebase AI Logic):** quando richiedi volontariamente un verdetto del Coach AI, vengono inviati in forma protetta solo i dati aggregati del tuo profilo ludico e delle ultime sessioni per generare il consiglio personalizzato. I dati non vengono venduti né usati per profilazione pubblicitaria.
+* **Statistiche di Utilizzo Anonime (Google Analytics for Firebase):** l'app raccoglie metriche aggregate e prive di dati personali (schermate visitate, completamento esercizi, utilizzo delle funzioni principali) con raccolta dell'Advertising ID disattivata. Puoi disattivare questa raccolta in qualsiasi momento da *Impostazioni & Privacy*.
 * **Modalità Provvisoria (Locale):** se accedi in modalità provvisoria locale, nessun dato viene salvato sul database cloud Firestore; i progressi restano temporaneamente in memoria sul dispositivo per la sola sessione di prova.
 
 ## 3. Permessi del Dispositivo
@@ -22,7 +23,7 @@ AllenaMente riduce al minimo i dati trattati:
 * **Nessun accesso a foto, archivio esterno, fotocamera, microfono o posizione.** L'esportazione della card immagine PNG utilizza esclusivamente la cache interna protetta dell'app tramite `FileProvider`.
 
 ## 4. Condivisione con Terze Parti e Pubblicità
-AllenaMente **non** integra SDK pubblicitari e **non** vende né cede i tuoi dati personali a broker o reti di marketing. L'infrastruttura cloud sicura è gestita tramite **Google Firebase** con crittografia in transito (HTTPS/TLS) e regole di isolamento rigoroso per utente.
+AllenaMente **non** integra SDK pubblicitari, disattiva la raccolta dell'Advertising ID e **non** vende né cede i tuoi dati personali a broker o reti di marketing. L'infrastruttura cloud sicura è gestita tramite **Google Firebase** con crittografia in transito (HTTPS/TLS) e regole di isolamento rigoroso per utente.
 
 ## 5. Diritti dell'Utente (GDPR — UE 2016/679)
 Direttamente all'interno dell'app (*Impostazioni & Privacy*) puoi esercitare in autonomia i tuoi diritti:

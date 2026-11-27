@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Policy
+import androidx.compose.material.icons.rounded.QueryStats
 import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
@@ -59,6 +60,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import com.example.data.model.AppTheme
 import com.example.data.model.MascotType
 import com.example.data.model.UserProfile
@@ -78,6 +81,8 @@ fun SettingsBottomSheet(
     onToggleSound: (Boolean) -> Unit,
     onToggleZenMode: (Boolean) -> Unit,
     onToggleReminder: (Boolean) -> Unit,
+    analyticsEnabled: Boolean = true,
+    onToggleAnalytics: (Boolean) -> Unit = {},
     onOpenTutorial: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
     onExportGdprJson: () -> Unit,
@@ -267,6 +272,15 @@ fun SettingsBottomSheet(
             // GDPR & Play Store Compliance Controls
             Text("Guida, Privacy & GDPR", style = MaterialTheme.typography.titleMedium)
 
+            SettingsToggleRow(
+                icon = Icons.Rounded.QueryStats,
+                title = stringResource(R.string.analytics_toggle_title),
+                subtitle = stringResource(R.string.analytics_toggle_subtitle),
+                checked = analyticsEnabled,
+                onCheckedChange = onToggleAnalytics,
+                switchTag = "settings_analytics_toggle"
+            )
+
             OutlinedButton(
                 onClick = onOpenTutorial,
                 shape = RoundedCornerShape(14.dp),
@@ -375,7 +389,8 @@ private fun SettingsToggleRow(
     title: String,
     subtitle: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    switchTag: String? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -394,6 +409,10 @@ private fun SettingsToggleRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = if (switchTag != null) Modifier.testTag(switchTag) else Modifier
+        )
     }
 }

@@ -71,7 +71,9 @@ fun ResultsDashboardScreen(
     balanceIndex: Int,
     coachState: UiState<CoachVerdict>,
     onRequestAiCoach: (forceRefresh: Boolean) -> Unit,
-    onLaunchRecommendedGame: (gameId: String) -> Unit
+    onLaunchRecommendedGame: (gameId: String) -> Unit,
+    onToggleDeepDive: (expanded: Boolean) -> Unit = {},
+    onShareNeuralPass: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val pillars = LocalPillarColors.current
@@ -340,7 +342,11 @@ fun ResultsDashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showDeepDive = !showDeepDive }
+                            .clickable {
+                                val next = !showDeepDive
+                                showDeepDive = next
+                                onToggleDeepDive(next)
+                            }
                             .padding(16.dp)
                             .testTag("toggle_deep_dive_button"),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -393,6 +399,7 @@ fun ResultsDashboardScreen(
 
                             OutlinedButton(
                                 onClick = {
+                                    onShareNeuralPass()
                                     EditorialCardExporter.shareNeuralPassImage(
                                         context = context,
                                         profile = profile,

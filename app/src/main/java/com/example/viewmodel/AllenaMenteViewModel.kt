@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.firebase.AiCoachService
 import com.example.data.firebase.AllenaMenteRepository
+import com.example.data.firebase.AnalyticsTracker
+import com.example.data.firebase.GameLaunchSource
+import com.example.data.firebase.NoOpAnalyticsTracker
 import com.example.data.model.AGE_COHORTS
 import com.example.data.model.AppTheme
 import com.example.data.model.CoachVerdict
@@ -47,14 +50,26 @@ data class ActiveGameLaunch(
 )
 
 class AllenaMenteViewModel(
-    private val repository: AllenaMenteRepository,
+    private val repository: AllenaMenteRepository?,
     private val aiCoachService: AiCoachService,
     val currentUserId: String,
     googleDisplayName: String?,
-    val isProvisionalMode: Boolean = false
+    val isProvisionalMode: Boolean = false,
+    private val analytics: AnalyticsTracker = NoOpAnalyticsTracker
 ) : ViewModel() {
 
-    val todayDateKey: String = repository.todayDateKey()
+    private val useLocalOnly: Boolean = isProvisionalMode || repository == null
+
+    private val _analyticsEnabled = MutableStateFlow(analytics.isCollectionEnabled)
+    val analyticsEnabled: StateFlow<Boolean> = _analyticsEnabled.asStateFlow()
+
+    fun setAnalyticsEnabled(enabled: Boolean) {
+        analytics.setCollectionEnabled(enabled)
+        _analyticsEnabled.value = analytics.isCollectionEnabled
+    }
+
+    val todayDateKey: String = repository?.todayDateKey()
+        ?: SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
     // Local in-memory state used exclusively in Modalità provvisoria (never hits Firestore unauthenticated)
     private val localProfile = MutableStateFlow<UiState<UserProfile?>>(
@@ -73,10 +88,10 @@ class AllenaMenteViewModel(
     private val localDailyStats = MutableStateFlow<UiState<List<DailyStat>>>(UiState.Success(emptyList()))
 
     // Two-tier Flow error unwrapping for UserProfile (Firestore when authenticated, in-memory when provisional)
-    val profileState: StateFlow<UiState<UserProfile?>> = if (isProvisionalMode) {
+    val profileState: StateFlow<UiState<UserProfile?>> = if (useLocalOnly) {
         localProfile.asStateFlow()
     } else {
-        repository.observeUserProfile(currentUserId)
+        repository!!.observeUserProfile(currentUserId)
             .map<UserProfile?, UiState<UserProfile?>> { UiState.Success(it) }
             .catch { error ->
                 val fsError = generateSequence(error) { it.cause }
@@ -90,10 +105,10 @@ class AllenaMenteViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), UiState.Loading)
     }
 
-    val sessionsState: StateFlow<UiState<List<TrainingSession>>> = if (isProvisionalMode) {
+    val sessionsState: StateFlow<UiState<List<TrainingSession>>> = if (useLocalOnly) {
         localSessions.asStateFlow()
     } else {
-        repository.observeRecentSessions(currentUserId)
+        repository!!.observeRecentSessions(currentUserId)
             .map<List<TrainingSession>, UiState<List<TrainingSession>>> { UiState.Success(it) }
             .catch { error ->
                 val fsError = generateSequence(error) { it.cause }
@@ -107,10 +122,10 @@ class AllenaMenteViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), UiState.Loading)
     }
 
-    val dailyStatsState: StateFlow<UiState<List<DailyStat>>> = if (isProvisionalMode) {
+    val dailyStatsState: StateFlow<UiState<List<DailyStat>>> = if (useLocalOnly) {
         localDailyStats.asStateFlow()
     } else {
-        repository.observeDailyStats(currentUserId)
+        repository!!.observeDailyStats(currentUserId)
             .map<List<DailyStat>, UiState<List<DailyStat>>> { UiState.Success(it) }
             .catch { error ->
                 val fsError = generateSequence(error) { it.cause }
@@ -151,9 +166,9 @@ class AllenaMenteViewModel(
     )
 
     init {
-        if (!isProvisionalMode) {
+        if (!useLocalOnly) {
             viewModelScope.launch {
-                val res = repository.ensureProfileExists(currentUserId, googleDisplayName)
+                val res = repository!!.ensureProfileExists(currentUserId, googleDisplayName)
                 res.onFailure { err ->
                     _snackbarMessage.value = "Sync iniziale: ${err.localizedMessage ?: "modalità offline attiva"}"
                 }
@@ -183,16 +198,18 @@ class AllenaMenteViewModel(
     }
 
     fun acceptOnboarding(displayName: String, ageCohort: String) {
-        if (isProvisionalMode) {
+        val safeCohort = if (ageCohort in AGE_COHORTS) ageCohort else "25-34"
+        if (useLocalOnly) {
             val safeName = displayName.trim().take(50).ifBlank { "Tester Provvisorio" }
-            val safeCohort = if (ageCohort in AGE_COHORTS) ageCohort else "25-34"
             updateLocalProfile { it.copy(displayName = safeName, ageCohort = safeCohort, termsAccepted = true) }
+            analytics.logOnboardingCompleted(safeCohort)
             _showCalibrationModal.value = true
             return
         }
         viewModelScope.launch {
-            val res = repository.acceptOnboarding(currentUserId, displayName, ageCohort)
+            val res = repository!!.acceptOnboarding(currentUserId, displayName, safeCohort)
             res.onSuccess {
+                analytics.logOnboardingCompleted(safeCohort)
                 _showCalibrationModal.value = true
             }.onFailure { err ->
                 _snackbarMessage.value = err.localizedMessage ?: "Impossibile salvare il profilo."
@@ -201,19 +218,21 @@ class AllenaMenteViewModel(
     }
 
     fun skipCalibration() {
-        if (isProvisionalMode) {
+        if (useLocalOnly) {
             updateLocalProfile { it.copy(calibrationCompleted = true) }
+            analytics.logCalibrationSkipped()
             _showCalibrationModal.value = false
             return
         }
         viewModelScope.launch {
-            repository.completeCalibration(currentUserId, null, null, null, null, null)
+            repository!!.completeCalibration(currentUserId, null, null, null, null, null)
+            analytics.logCalibrationSkipped()
             _showCalibrationModal.value = false
         }
     }
 
     fun saveCalibrationScores(logic: Int, memory: Int, reflex: Int, empathy: Int, speedIndex: Int) {
-        if (isProvisionalMode) {
+        if (useLocalOnly) {
             updateLocalProfile {
                 it.copy(
                     calibrationCompleted = true,
@@ -224,13 +243,15 @@ class AllenaMenteViewModel(
                     speedIndex = speedIndex.coerceIn(0, 1000)
                 )
             }
+            analytics.logCalibrationCompleted(speedIndex.coerceIn(0, 1000))
             _showCalibrationModal.value = false
             _snackbarMessage.value = "Profilo calibrato! Indice di Velocità: $speedIndex pt."
             return
         }
         viewModelScope.launch {
-            val res = repository.completeCalibration(currentUserId, logic, memory, reflex, empathy, speedIndex)
+            val res = repository!!.completeCalibration(currentUserId, logic, memory, reflex, empathy, speedIndex)
             res.onSuccess {
+                analytics.logCalibrationCompleted(speedIndex.coerceIn(0, 1000))
                 _showCalibrationModal.value = false
                 _snackbarMessage.value = "Profilo calibrato! Indice di Velocità: $speedIndex pt."
             }.onFailure { err ->
@@ -249,7 +270,13 @@ class AllenaMenteViewModel(
         reminderMinute: Int? = null,
         displayName: String? = null
     ) {
-        if (isProvisionalMode) {
+        theme?.let { analytics.logPreferenceChanged("theme", it.name) }
+        mascot?.let { analytics.logPreferenceChanged("mascot", it.name) }
+        soundEnabled?.let { analytics.logPreferenceChanged("sound_enabled", it.toString()) }
+        zenFlowMode?.let { analytics.logPreferenceChanged("zen_flow_mode", it.toString()) }
+        reminderEnabled?.let { analytics.logPreferenceChanged("reminder_enabled", it.toString()) }
+
+        if (useLocalOnly) {
             updateLocalProfile { p ->
                 p.copy(
                     selectedTheme = theme?.name ?: p.selectedTheme,
@@ -265,7 +292,7 @@ class AllenaMenteViewModel(
             return
         }
         viewModelScope.launch {
-            val res = repository.updatePreferences(
+            val res = repository!!.updatePreferences(
                 userId = currentUserId,
                 theme = theme,
                 mascot = mascot,
@@ -288,19 +315,29 @@ class AllenaMenteViewModel(
         zenMode: Boolean,
         customSeed: Int? = null,
         duelChallenge: DuelChallenge? = null,
-        dailyCircuitStage: Int? = null
+        dailyCircuitStage: Int? = null,
+        source: GameLaunchSource = GameLaunchSource.GYM_CATALOG
     ) {
         val game = GAMES_CATALOG.firstOrNull { it.id == gameId } ?: GAMES_CATALOG.first()
         val effectiveZen = zenMode && game.supportsZenMode && duelChallenge == null
-        val seed = customSeed ?: com.example.engine.Mulberry32.seedFor(gameId, level)
+        val safeLevel = level.coerceIn(1, 100)
+        val seed = customSeed ?: com.example.engine.Mulberry32.seedFor(gameId, safeLevel)
         _lastResult.value = null
         _activeGame.value = ActiveGameLaunch(
             gameId = gameId,
-            level = level.coerceIn(1, 100),
+            level = safeLevel,
             seed = seed,
             zenMode = effectiveZen,
             duelChallenge = duelChallenge,
             dailyCircuitStage = dailyCircuitStage
+        )
+        analytics.logGameStart(
+            gameId = gameId,
+            pillar = game.pillar.name,
+            level = safeLevel,
+            zenMode = effectiveZen,
+            source = source,
+            isDuel = duelChallenge != null
         )
     }
 
@@ -314,11 +351,13 @@ class AllenaMenteViewModel(
         }
         val gameId = dailyCircuitGameIds[nextStage]
         val level = profile.unlockedLevelFor(gameId)
+        analytics.logDailyCircuitStarted(stage = nextStage, gameId = gameId)
         launchGame(
             gameId = gameId,
             level = level,
             zenMode = profile.zenFlowMode,
-            dailyCircuitStage = nextStage
+            dailyCircuitStage = nextStage,
+            source = GameLaunchSource.DAILY_CIRCUIT
         )
     }
 
@@ -331,24 +370,49 @@ class AllenaMenteViewModel(
         val currentProfile = (profileState.value as? UiState.Success)?.data ?: return
         val dailyList = (dailyStatsState.value as? UiState.Success)?.data.orEmpty()
         val todayStat = dailyList.firstOrNull { it.dateKey == todayDateKey }
+        val activeStage = _activeGame.value?.dailyCircuitStage
 
-        if (isProvisionalMode) {
-            recordProvisionalSession(currentProfile, dailyList, todayStat, result)
+        if (useLocalOnly) {
+            val unlocked = recordProvisionalSession(currentProfile, dailyList, todayStat, result)
+            logFinishedGameAnalytics(result, unlocked, activeStage)
             return
         }
 
         viewModelScope.launch {
-            val saved = repository.recordSessionAndProgress(
-                userId = currentUserId,
+            val saved = repository!!.recordSessionAndProgress(
+                userId = currentProfile.userId.ifBlank { currentUserId },
                 currentProfile = currentProfile,
                 todayStat = todayStat,
                 result = result
             )
             val unlocked = saved.getOrDefault(false)
             _lastResult.value = result.copy(unlockedNextLevel = unlocked)
+            logFinishedGameAnalytics(result, unlocked, activeStage)
             if (saved.isFailure) {
                 _snackbarMessage.value = "Sessione salvata in cache offline; sincronizzazione al prossimo accesso."
             }
+        }
+    }
+
+    private fun logFinishedGameAnalytics(
+        result: SessionResult,
+        unlockedNextLevel: Boolean,
+        dailyCircuitStage: Int?
+    ) {
+        analytics.logGameEnd(
+            gameId = result.gameId,
+            pillar = result.pillar.name,
+            level = result.level,
+            score = result.score,
+            accuracyPercent = result.accuracyPercent,
+            avgReactionMs = result.avgReactionMs,
+            durationSec = result.durationSec,
+            zenMode = result.zenModeUsed,
+            unlockedNextLevel = unlockedNextLevel,
+            isDuel = result.duelSeed != null
+        )
+        if (dailyCircuitStage == 3) {
+            analytics.logDailyCircuitCompleted()
         }
     }
 
@@ -357,7 +421,7 @@ class AllenaMenteViewModel(
         dailyList: List<DailyStat>,
         todayStat: DailyStat?,
         result: SessionResult
-    ) {
+    ): Boolean {
         val session = TrainingSession(
             id = UUID.randomUUID().toString(),
             userId = currentUserId,
@@ -444,6 +508,7 @@ class AllenaMenteViewModel(
             )
         }
         _lastResult.value = result.copy(unlockedNextLevel = unlockedNext)
+        return unlockedNext
     }
 
     fun advanceDailyCircuitIfApplicable() {
@@ -452,11 +517,13 @@ class AllenaMenteViewModel(
         if (active?.dailyCircuitStage != null && currentProfile != null && active.dailyCircuitStage < 3) {
             val nextStage = active.dailyCircuitStage + 1
             val nextGameId = dailyCircuitGameIds[nextStage]
+            analytics.logDailyCircuitStageAdvanced(nextStage = nextStage, gameId = nextGameId)
             launchGame(
                 gameId = nextGameId,
                 level = currentProfile.unlockedLevelFor(nextGameId),
                 zenMode = currentProfile.zenFlowMode,
-                dailyCircuitStage = nextStage
+                dailyCircuitStage = nextStage,
+                source = GameLaunchSource.DAILY_CIRCUIT
             )
         } else {
             exitActiveGame()
@@ -466,18 +533,25 @@ class AllenaMenteViewModel(
     fun requestAiCoachVerdict(forceRefresh: Boolean = false) {
         val profile = (profileState.value as? UiState.Success)?.data ?: return
         val sessions = (sessionsState.value as? UiState.Success)?.data.orEmpty()
+        analytics.logAiCoachRequested(forceRefresh = forceRefresh, sessionCount = sessions.size)
         viewModelScope.launch {
             _coachState.value = UiState.Loading
             val res = aiCoachService.generateCoachVerdict(profile, sessions, forceRefresh = forceRefresh)
             _coachState.value = res.fold(
-                onSuccess = { UiState.Success(it) },
+                onSuccess = { verdict ->
+                    analytics.logAiCoachVerdictShown(
+                        recommendedGameId = verdict.recommendedGameId,
+                        focusPillar = verdict.focusPillar
+                    )
+                    UiState.Success(verdict)
+                },
                 onFailure = { UiState.Error(it.localizedMessage ?: "Coach AI non disponibile.") }
             )
         }
     }
 
     fun exportUserDataJson(onExportReady: (String) -> Unit) {
-        if (isProvisionalMode) {
+        if (useLocalOnly) {
             val profile = (localProfile.value as? UiState.Success)?.data
             val sessions = (localSessions.value as? UiState.Success)?.data.orEmpty()
             val root = JSONObject().apply {
@@ -508,7 +582,7 @@ class AllenaMenteViewModel(
             return
         }
         viewModelScope.launch {
-            val res = repository.exportAllDataJson(currentUserId)
+            val res = repository!!.exportAllDataJson(currentUserId)
             res.onSuccess { json ->
                 onExportReady(json)
             }.onFailure { err ->
@@ -518,7 +592,8 @@ class AllenaMenteViewModel(
     }
 
     fun deleteAllUserData(onDeleted: () -> Unit) {
-        if (isProvisionalMode) {
+        if (useLocalOnly) {
+            analytics.logGdprDataDeleted("provisional")
             localSessions.value = UiState.Success(emptyList())
             localDailyStats.value = UiState.Success(emptyList())
             _snackbarMessage.value = "Sessione provvisoria azzerata."
@@ -526,8 +601,9 @@ class AllenaMenteViewModel(
             return
         }
         viewModelScope.launch {
-            val res = repository.deleteAllUserData(currentUserId)
+            val res = repository!!.deleteAllUserData(currentUserId)
             res.onSuccess {
+                analytics.logGdprDataDeleted("google")
                 _snackbarMessage.value = "Tutti i dati cloud e locali sono stati eliminati."
                 onDeleted()
             }.onFailure { err ->
