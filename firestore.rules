@@ -1,0 +1,231 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDateKey(val) {
+      return val is string && val.size() == 10 && val.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidAgeCohort(val) {
+      return val in ['14-24', '25-34', '35-44', '45-54', '55-64', '65+'];
+    }
+
+    function isValidTheme(val) {
+      return val in ['ZEN_PEBBLE', 'WARM_GLASS', 'NEO_BRUTALIST', 'OBSIDIAN_DARK'];
+    }
+
+    function isValidMascot(val) {
+      return val in ['PANDA', 'FOX', 'OWL', 'OTTER', 'CAT', 'DEER', 'WOLF'];
+    }
+
+    function isValidPillar(val) {
+      return val in ['LOGIC', 'MEMORY', 'REFLEX', 'EMPATHY'];
+    }
+
+    // --- Entity Validation Blueprints ---
+
+    function isValidUserProfile(data, userId) {
+      return data.userId is string &&
+        data.userId == userId &&
+        data.userId == request.auth.uid &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 50 &&
+        data.ageCohort is string && isValidAgeCohort(data.ageCohort) &&
+        data.termsAccepted is bool &&
+        data.calibrationCompleted is bool &&
+        data.selectedTheme is string && isValidTheme(data.selectedTheme) &&
+        data.selectedMascot is string && isValidMascot(data.selectedMascot) &&
+        data.soundEnabled is bool &&
+        data.zenFlowMode is bool &&
+        data.reminderEnabled is bool &&
+        data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23 &&
+        data.reminderMinute is int && data.reminderMinute >= 0 && data.reminderMinute <= 59 &&
+        data.currentStreak is int && data.currentStreak >= 0 && data.currentStreak <= 100000 &&
+        data.bestStreak is int && data.bestStreak >= 0 && data.bestStreak <= 100000 &&
+        data.streakFreezesAvailable is int && data.streakFreezesAvailable >= 0 && data.streakFreezesAvailable <= 10 &&
+        (!('lastWorkoutDate' in data) || data.lastWorkoutDate == null || (data.lastWorkoutDate is string && data.lastWorkoutDate.size() <= 16)) &&
+        (!('lastFreezeUsedDate' in data) || data.lastFreezeUsedDate == null || (data.lastFreezeUsedDate is string && data.lastFreezeUsedDate.size() <= 16)) &&
+        (!('lastFreezeRefillMonth' in data) || data.lastFreezeRefillMonth == null || (data.lastFreezeRefillMonth is string && data.lastFreezeRefillMonth.size() <= 10)) &&
+        data.logicScore is int && data.logicScore >= 0 && data.logicScore <= 100 &&
+        data.memoryScore is int && data.memoryScore >= 0 && data.memoryScore <= 100 &&
+        data.reflexScore is int && data.reflexScore >= 0 && data.reflexScore <= 100 &&
+        data.empathyScore is int && data.empathyScore >= 0 && data.empathyScore <= 100 &&
+        data.speedIndex is int && data.speedIndex >= 0 && data.speedIndex <= 1000 &&
+        data.unlockedLevels is map && data.unlockedLevels.size() <= 30 &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidTrainingSession(data, userId) {
+      return data.userId is string &&
+        data.userId == userId &&
+        data.userId == request.auth.uid &&
+        data.gameId is string && data.gameId.size() >= 2 && data.gameId.size() <= 40 &&
+        data.pillar is string && isValidPillar(data.pillar) &&
+        data.level is int && data.level >= 1 && data.level <= 100 &&
+        data.score is int && data.score >= 0 && data.score <= 10000 &&
+        data.accuracyPercent is int && data.accuracyPercent >= 0 && data.accuracyPercent <= 100 &&
+        data.avgReactionMs is int && data.avgReactionMs >= 0 && data.avgReactionMs <= 60000 &&
+        data.durationSec is int && data.durationSec >= 0 && data.durationSec <= 3600 &&
+        data.zenModeUsed is bool &&
+        (!('duelSeed' in data) || data.duelSeed == null || (data.duelSeed is int && data.duelSeed >= 0)) &&
+        isValidDateKey(data.dateKey) &&
+        data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidDailyStat(data, userId, dateId) {
+      return data.userId is string &&
+        data.userId == userId &&
+        data.userId == request.auth.uid &&
+        isValidDateKey(data.dateKey) &&
+        data.dateKey == dateId &&
+        data.sessionsCount is int && data.sessionsCount >= 0 && data.sessionsCount <= 500 &&
+        data.totalScore is int && data.totalScore >= 0 && data.totalScore <= 1000000 &&
+        data.logicCompleted is bool &&
+        data.memoryCompleted is bool &&
+        data.reflexCompleted is bool &&
+        data.empathyCompleted is bool &&
+        data.avgAccuracy is int && data.avgAccuracy >= 0 && data.avgAccuracy <= 100 &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // --- Collection Rules ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        incoming().keys().hasAll([
+          'userId', 'displayName', 'ageCohort', 'termsAccepted', 'calibrationCompleted',
+          'selectedTheme', 'selectedMascot', 'soundEnabled', 'zenFlowMode',
+          'reminderEnabled', 'reminderHour', 'reminderMinute',
+          'currentStreak', 'bestStreak', 'streakFreezesAvailable',
+          'logicScore', 'memoryScore', 'reflexScore', 'empathyScore', 'speedIndex',
+          'unlockedLevels', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'userId', 'displayName', 'ageCohort', 'termsAccepted', 'calibrationCompleted',
+          'selectedTheme', 'selectedMascot', 'soundEnabled', 'zenFlowMode',
+          'reminderEnabled', 'reminderHour', 'reminderMinute',
+          'currentStreak', 'bestStreak', 'streakFreezesAvailable',
+          'lastWorkoutDate', 'lastFreezeUsedDate', 'lastFreezeRefillMonth',
+          'logicScore', 'memoryScore', 'reflexScore', 'empathyScore', 'speedIndex',
+          'unlockedLevels', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          // Action: Update settings, preferences, or onboarding
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName', 'ageCohort', 'termsAccepted', 'calibrationCompleted',
+            'selectedTheme', 'selectedMascot', 'soundEnabled', 'zenFlowMode',
+            'reminderEnabled', 'reminderHour', 'reminderMinute', 'updatedAt'
+          ]) ||
+          // Action: Update training progression, scores, streak, and unlocked levels
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'calibrationCompleted', 'currentStreak', 'bestStreak', 'streakFreezesAvailable',
+            'lastWorkoutDate', 'lastFreezeUsedDate', 'lastFreezeRefillMonth',
+            'logicScore', 'memoryScore', 'reflexScore', 'empathyScore', 'speedIndex',
+            'unlockedLevels', 'updatedAt'
+          ])
+        );
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /sessions/{sessionId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId) && isValidId(userId);
+
+        allow create: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(sessionId) &&
+          incoming().keys().hasAll([
+            'userId', 'gameId', 'pillar', 'level', 'score',
+            'accuracyPercent', 'avgReactionMs', 'durationSec',
+            'zenModeUsed', 'dateKey', 'createdAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'gameId', 'pillar', 'level', 'score',
+            'accuracyPercent', 'avgReactionMs', 'durationSec',
+            'zenModeUsed', 'duelSeed', 'dateKey', 'createdAt'
+          ]) &&
+          isValidTrainingSession(incoming(), userId);
+
+        // Append-only history; cannot mutate completed session records
+        allow update: if false;
+
+        // Owner can delete sessions (e.g., GDPR full data reset)
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(sessionId);
+      }
+
+      match /dailyStats/{dateId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidDateKey(dateId);
+        allow list: if isOwner(userId) && isValidId(userId);
+
+        allow create: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidDateKey(dateId) &&
+          incoming().keys().hasAll([
+            'userId', 'dateKey', 'sessionsCount', 'totalScore',
+            'logicCompleted', 'memoryCompleted', 'reflexCompleted', 'empathyCompleted',
+            'avgAccuracy', 'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'dateKey', 'sessionsCount', 'totalScore',
+            'logicCompleted', 'memoryCompleted', 'reflexCompleted', 'empathyCompleted',
+            'avgAccuracy', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidDailyStat(incoming(), userId, dateId);
+
+        allow update: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidDateKey(dateId) &&
+          isValidDailyStat(incoming(), userId, dateId) &&
+          incoming().userId == existing().userId &&
+          incoming().dateKey == existing().dateKey &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'sessionsCount', 'totalScore',
+            'logicCompleted', 'memoryCompleted', 'reflexCompleted', 'empathyCompleted',
+            'avgAccuracy', 'updatedAt'
+          ]);
+
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidDateKey(dateId);
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "AllenaMente",
+  "description": "Palestra cognitiva quotidiana offline-first con 18 giochi procedurali, sync cloud Firebase, Coach AI e conformità Play Store.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

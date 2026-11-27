@@ -1,0 +1,295 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Cognitive training profile, preferences, streak freeze state, 4-pillar ratings, and unlocked levels per game.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase Auth UID matching document ID."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name (1 to 50 chars)."
+        },
+        "ageCohort": {
+          "type": "string",
+          "enum": ["14-24", "25-34", "35-44", "45-54", "55-64", "65+"],
+          "description": "Self-selected age cohort for non-clinical ludic benchmarking."
+        },
+        "termsAccepted": {
+          "type": "boolean",
+          "description": "Whether the user accepted the non-clinical wellness terms."
+        },
+        "calibrationCompleted": {
+          "type": "boolean",
+          "description": "Whether the 4-micro-challenge initial calibration has been completed."
+        },
+        "selectedTheme": {
+          "type": "string",
+          "enum": ["ZEN_PEBBLE", "WARM_GLASS", "NEO_BRUTALIST", "OBSIDIAN_DARK"],
+          "description": "Active visual theme."
+        },
+        "selectedMascot": {
+          "type": "string",
+          "enum": ["PANDA", "FOX", "OWL", "OTTER", "CAT", "DEER", "WOLF"],
+          "description": "Active mascot sound and celebration persona."
+        },
+        "soundEnabled": {
+          "type": "boolean",
+          "description": "Whether synthesized audio feedback is enabled."
+        },
+        "zenFlowMode": {
+          "type": "boolean",
+          "description": "Whether Calm Arcade (Flusso Zen, timerless) mode is enabled for compatible puzzles."
+        },
+        "reminderEnabled": {
+          "type": "boolean",
+          "description": "Whether daily training reminder preference is enabled."
+        },
+        "reminderHour": {
+          "type": "integer",
+          "description": "Daily reminder hour (0-23)."
+        },
+        "reminderMinute": {
+          "type": "integer",
+          "description": "Daily reminder minute (0-59)."
+        },
+        "currentStreak": {
+          "type": "integer",
+          "description": "Active consecutive training days."
+        },
+        "bestStreak": {
+          "type": "integer",
+          "description": "All-time best streak."
+        },
+        "streakFreezesAvailable": {
+          "type": "integer",
+          "description": "Monthly streak freeze shields available (0-10)."
+        },
+        "lastWorkoutDate": {
+          "type": "string",
+          "description": "Optional YYYY-MM-DD date of last completed workout."
+        },
+        "lastFreezeUsedDate": {
+          "type": "string",
+          "description": "Optional YYYY-MM-DD date when streak freeze was last consumed."
+        },
+        "lastFreezeRefillMonth": {
+          "type": "string",
+          "description": "Optional YYYY-MM month when streak freeze was last refilled."
+        },
+        "logicScore": {
+          "type": "integer",
+          "description": "Logic pillar score (0-100)."
+        },
+        "memoryScore": {
+          "type": "integer",
+          "description": "Memory pillar score (0-100)."
+        },
+        "reflexScore": {
+          "type": "integer",
+          "description": "Reflex pillar score (0-100)."
+        },
+        "empathyScore": {
+          "type": "integer",
+          "description": "Empathy / Mirror pillar score (0-100)."
+        },
+        "speedIndex": {
+          "type": "integer",
+          "description": "Ludic cognitive speed index in points (0-1000)."
+        },
+        "unlockedLevels": {
+          "type": "object",
+          "description": "Map of gameId to highest unlocked level (1-100)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on create."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on create/update."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "ageCohort",
+        "termsAccepted",
+        "calibrationCompleted",
+        "selectedTheme",
+        "selectedMascot",
+        "soundEnabled",
+        "zenFlowMode",
+        "reminderEnabled",
+        "reminderHour",
+        "reminderMinute",
+        "currentStreak",
+        "bestStreak",
+        "streakFreezesAvailable",
+        "logicScore",
+        "memoryScore",
+        "reflexScore",
+        "empathyScore",
+        "speedIndex",
+        "unlockedLevels",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TrainingSession": {
+      "title": "TrainingSession",
+      "description": "Append-only record of a completed cognitive training game session.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "gameId": {
+          "type": "string",
+          "description": "Identifier of one of the 18 games."
+        },
+        "pillar": {
+          "type": "string",
+          "enum": ["LOGIC", "MEMORY", "REFLEX", "EMPATHY"],
+          "description": "Cognitive pillar trained."
+        },
+        "level": {
+          "type": "integer",
+          "description": "Procedural level played (1-100)."
+        },
+        "score": {
+          "type": "integer",
+          "description": "Session score (0-10000)."
+        },
+        "accuracyPercent": {
+          "type": "integer",
+          "description": "Session accuracy percentage (0-100)."
+        },
+        "avgReactionMs": {
+          "type": "integer",
+          "description": "Average reaction time in milliseconds (0-60000)."
+        },
+        "durationSec": {
+          "type": "integer",
+          "description": "Total duration in seconds (0-3600)."
+        },
+        "zenModeUsed": {
+          "type": "boolean",
+          "description": "Whether Flusso Zen timerless mode was active."
+        },
+        "duelSeed": {
+          "type": "integer",
+          "description": "Optional deterministic Mulberry32 seed used for 1v1 duel."
+        },
+        "dateKey": {
+          "type": "string",
+          "description": "Local training date key in YYYY-MM-DD format."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "gameId",
+        "pillar",
+        "level",
+        "score",
+        "accuracyPercent",
+        "avgReactionMs",
+        "durationSec",
+        "zenModeUsed",
+        "dateKey",
+        "createdAt"
+      ]
+    },
+    "DailyStat": {
+      "title": "DailyStat",
+      "description": "Normalized daily training summary tracking the 4 daily rings and aggregate performance.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "dateKey": {
+          "type": "string",
+          "description": "Date key YYYY-MM-DD matching document ID."
+        },
+        "sessionsCount": {
+          "type": "integer",
+          "description": "Number of sessions completed on this day."
+        },
+        "totalScore": {
+          "type": "integer",
+          "description": "Cumulative score earned on this day."
+        },
+        "logicCompleted": {
+          "type": "boolean",
+          "description": "Whether the Logic daily ring is closed."
+        },
+        "memoryCompleted": {
+          "type": "boolean",
+          "description": "Whether the Memory daily ring is closed."
+        },
+        "reflexCompleted": {
+          "type": "boolean",
+          "description": "Whether the Reflex daily ring is closed."
+        },
+        "empathyCompleted": {
+          "type": "boolean",
+          "description": "Whether the Empathy daily ring is closed."
+        },
+        "avgAccuracy": {
+          "type": "integer",
+          "description": "Average accuracy percentage for the day (0-100)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "dateKey",
+        "sessionsCount",
+        "totalScore",
+        "logicCompleted",
+        "memoryCompleted",
+        "reflexCompleted",
+        "empathyCompleted",
+        "avgAccuracy",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user cognitive profile, theme/mascot settings, streak freeze, and unlocked levels."
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/TrainingSession" },
+      "description": "Append-only per-user history of cognitive training sessions."
+    },
+    "/users/{userId}/dailyStats/{dateId}": {
+      "schema": { "$ref": "#/entities/DailyStat" },
+      "description": "Normalized per-day aggregated stats and 4-pillar daily ring completion."
+    }
+  }
+}
