@@ -5,14 +5,14 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
-// 4 Cognitive Pillar Signature Accents
-val PillarLogicAmber = Color(0xFFD97706)
+// 4 Cognitive Pillar Signature Accents (WCAG AA >= 4.5:1 on light surfaces)
+val PillarLogicAmber = Color(0xFFB45309)
 val PillarLogicAmberLight = Color(0xFFF59E0B)
-val PillarMemoryTeal = Color(0xFF0D9488)
+val PillarMemoryTeal = Color(0xFF0F766E)
 val PillarMemoryTealLight = Color(0xFF14B8A6)
-val PillarReflexRose = Color(0xFFE11D48)
+val PillarReflexRose = Color(0xFFBE123C)
 val PillarReflexRoseLight = Color(0xFFF43F5E)
-val PillarEmpathyIndigo = Color(0xFF4F46E5)
+val PillarEmpathyIndigo = Color(0xFF4338CA)
 val PillarEmpathyIndigoLight = Color(0xFF6366F1)
 
 @Immutable
@@ -32,10 +32,10 @@ val LightPillarColors = PillarColors(
     memory = PillarMemoryTeal,
     reflex = PillarReflexRose,
     empathy = PillarEmpathyIndigo,
-    streakIce = Color(0xFF0284C7),
-    streakFlame = Color(0xFFEA580C),
-    success = Color(0xFF16A34A),
-    warning = Color(0xFFD97706)
+    streakIce = Color(0xFF0369A1),
+    streakFlame = Color(0xFFC2410C),
+    success = Color(0xFF15803D),
+    warning = Color(0xFFB45309)
 )
 
 val DarkPillarColors = PillarColors(
@@ -68,10 +68,10 @@ val ZenPebbleColorScheme = lightColorScheme(
     surface = Color(0xFFFCFBF8),
     onSurface = Color(0xFF161C19),
     surfaceVariant = Color(0xFFE8E4DC),
-    onSurfaceVariant = Color(0xFF444B47),
-    outline = Color(0xFFC8C2B8),
-    outlineVariant = Color(0xFFDFDAD0),
-    error = Color(0xFFDC2626),
+    onSurfaceVariant = Color(0xFF3E4541),
+    outline = Color(0xFF767067),
+    outlineVariant = Color(0xFFD1CBC0),
+    error = Color(0xFFB91C1C),
     onError = Color(0xFFFFFFFF)
 )
 

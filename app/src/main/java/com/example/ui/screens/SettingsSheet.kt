@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -57,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -174,7 +177,11 @@ fun SettingsBottomSheet(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onSelectTheme(theme) }
+                            .selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = { onSelectTheme(theme) }
+                            )
                             .testTag("theme_option_${theme.name}")
                     ) {
                         Column(Modifier.padding(12.dp)) {
@@ -304,7 +311,7 @@ fun SettingsBottomSheet(
             ) {
                 Icon(Icons.Rounded.Policy, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Informativa Privacy & Disclaimer Non-Clinico")
+                Text(stringResource(R.string.privacy_link_button))
             }
 
             OutlinedButton(
@@ -393,7 +400,14 @@ private fun SettingsToggleRow(
     switchTag: String? = null
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            )
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -411,7 +425,7 @@ private fun SettingsToggleRow(
         Spacer(Modifier.width(8.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = null,
             modifier = if (switchTag != null) Modifier.testTag(switchTag) else Modifier
         )
     }

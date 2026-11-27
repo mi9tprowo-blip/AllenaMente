@@ -10,6 +10,7 @@ import com.google.firebase.analytics.analytics
 private const val ANALYTICS_TAG = "AllenaMenteAnalytics"
 private const val ANALYTICS_PREFS_NAME = "allenamente_analytics_prefs"
 private const val KEY_ANALYTICS_ENABLED = "analytics_collection_enabled"
+private const val KEY_ANALYTICS_CONSENT_DECIDED = "analytics_consent_decided"
 
 enum class GameLaunchSource(val analyticsValue: String) {
     HOME_RECOMMENDATION("home_recommendation"),
@@ -46,8 +47,11 @@ object AnalyticsSanitizer {
 
 interface AnalyticsTracker {
     val isCollectionEnabled: Boolean
+    val hasUserMadeConsentChoice: Boolean
 
+    fun recordConsentChoice(accepted: Boolean)
     fun setCollectionEnabled(enabled: Boolean)
+    fun resetConsent()
     fun logScreenView(screenName: String, screenClass: String = "MainActivity")
     fun logLogin(method: String)
     fun logSignOut(mode: String)
@@ -99,7 +103,10 @@ interface AnalyticsTracker {
 
 object NoOpAnalyticsTracker : AnalyticsTracker {
     override val isCollectionEnabled: Boolean = false
+    override val hasUserMadeConsentChoice: Boolean = true
+    override fun recordConsentChoice(accepted: Boolean) = Unit
     override fun setCollectionEnabled(enabled: Boolean) = Unit
+    override fun resetConsent() = Unit
     override fun logScreenView(screenName: String, screenClass: String) = Unit
     override fun logLogin(method: String) = Unit
     override fun logSignOut(mode: String) = Unit
@@ -156,11 +163,18 @@ class FirebaseAnalyticsTracker(context: Context) : AnalyticsTracker {
         Context.MODE_PRIVATE
     )
 
+    // Strictly OFF by default (GDPR / Garante Privacy Italy — zero pre-checked consent)
     @Volatile
-    private var collectionEnabledState: Boolean = prefs.getBoolean(KEY_ANALYTICS_ENABLED, true)
+    private var collectionEnabledState: Boolean = prefs.getBoolean(KEY_ANALYTICS_ENABLED, false)
+
+    @Volatile
+    private var consentDecidedState: Boolean = prefs.getBoolean(KEY_ANALYTICS_CONSENT_DECIDED, false)
 
     override val isCollectionEnabled: Boolean
         get() = collectionEnabledState
+
+    override val hasUserMadeConsentChoice: Boolean
+        get() = consentDecidedState
 
     private val analytics: FirebaseAnalytics? by lazy {
         runCatching { Firebase.analytics }
@@ -176,16 +190,36 @@ class FirebaseAnalyticsTracker(context: Context) : AnalyticsTracker {
         }
     }
 
+    override fun recordConsentChoice(accepted: Boolean) {
+        consentDecidedState = true
+        collectionEnabledState = accepted
+        prefs.edit()
+            .putBoolean(KEY_ANALYTICS_CONSENT_DECIDED, true)
+            .putBoolean(KEY_ANALYTICS_ENABLED, accepted)
+            .apply()
+        runCatching {
+            analytics?.setAnalyticsCollectionEnabled(accepted)
+        }.onFailure {
+            Log.w(ANALYTICS_TAG, "Failed to apply analytics consent choice", it)
+        }
+        if (accepted) {
+            logSafeEvent("analytics_consent_granted") {}
+        }
+    }
+
     override fun setCollectionEnabled(enabled: Boolean) {
         if (!enabled && collectionEnabledState) {
-            // Log opt-out once before disabling collection
             logSafeEvent("preference_changed") {
                 putString("setting_name", "analytics")
                 putString("setting_value", "false")
             }
         }
+        consentDecidedState = true
         collectionEnabledState = enabled
-        prefs.edit().putBoolean(KEY_ANALYTICS_ENABLED, enabled).apply()
+        prefs.edit()
+            .putBoolean(KEY_ANALYTICS_CONSENT_DECIDED, true)
+            .putBoolean(KEY_ANALYTICS_ENABLED, enabled)
+            .apply()
         runCatching {
             analytics?.setAnalyticsCollectionEnabled(enabled)
         }.onFailure {
@@ -196,6 +230,18 @@ class FirebaseAnalyticsTracker(context: Context) : AnalyticsTracker {
                 putString("setting_name", "analytics")
                 putString("setting_value", "true")
             }
+        }
+    }
+
+    override fun resetConsent() {
+        consentDecidedState = false
+        collectionEnabledState = false
+        prefs.edit().clear().apply()
+        runCatching {
+            analytics?.setAnalyticsCollectionEnabled(false)
+            analytics?.resetAnalyticsData()
+        }.onFailure {
+            Log.w(ANALYTICS_TAG, "Failed to reset analytics consent/data", it)
         }
     }
 

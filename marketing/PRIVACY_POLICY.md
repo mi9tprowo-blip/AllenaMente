@@ -14,16 +14,17 @@ AllenaMente riduce al minimo i dati trattati:
 * **Dati di Autenticazione (Google Sign-In / Firebase Authentication):** identificativo univoco utente (UID), nome visualizzato e indirizzo email, utilizzati esclusivamente per creare il tuo profilo privato e sincronizzare i progressi tra dispositivi.
 * **Dati di Utilizzo e Progressi (Firebase Firestore):** punteggi dei 4 pilastri, serie attiva, livelli sbloccati, storico sintetico delle sessioni di gioco e preferenze di personalizzazione (tema, mascotte, audio, modalità Flusso Zen, fascia d'età selezionata).
 * **Coach AI (Firebase AI Logic):** quando richiedi volontariamente un verdetto del Coach AI, vengono inviati in forma protetta solo i dati aggregati del tuo profilo ludico e delle ultime sessioni per generare il consiglio personalizzato. I dati non vengono venduti né usati per profilazione pubblicitaria.
-* **Statistiche di Utilizzo Anonime (Google Analytics for Firebase):** l'app raccoglie metriche aggregate e prive di dati personali (schermate visitate, completamento esercizi, utilizzo delle funzioni principali) con raccolta dell'Advertising ID disattivata. Puoi disattivare questa raccolta in qualsiasi momento da *Impostazioni & Privacy*.
+* **Statistiche di Utilizzo Anonime (Google Analytics for Firebase — Opt-In Esplicito):** la raccolta è **disattivata di default** all'avvio dell'app e si attiva esclusivamente se selezioni *"Accetta"* nel banner di consenso (con bottone *"Rifiuta"* di pari evidenza) o attivi l'interruttore in *Impostazioni & Privacy*. La raccolta dell'Advertising ID è disabilitata a livello di app e nessun dato personale viene incluso negli eventi.
 * **Modalità Provvisoria (Locale):** se accedi in modalità provvisoria locale, nessun dato viene salvato sul database cloud Firestore; i progressi restano temporaneamente in memoria sul dispositivo per la sola sessione di prova.
+* **Minori di 14 anni (Art. 2-quinquies Codice Privacy):** l'utilizzo autonomo dell'app è riservato a chi ha almeno 14 anni; sotto i 14 anni è richiesto il consenso di un genitore o tutore legale.
 
-## 3. Permessi del Dispositivo
+## 3. Permessi del Dispositivo e Disiscrizione
 * **Connessione Internet (`INTERNET`):** necessaria per l'accesso con Google, la sincronizzazione cloud e il Coach AI.
-* **Notifiche (`POST_NOTIFICATIONS`, facoltativo):** richiesto solo se attivi esplicitamente il promemoria quotidiano nelle Impostazioni.
+* **Notifiche (`POST_NOTIFICATIONS`, facoltativo):** richiesto solo se attivi esplicitamente il promemoria quotidiano nelle Impostazioni (disattivabile in 1 tocco). Nessuna newsletter o email promozionale viene inviata.
 * **Nessun accesso a foto, archivio esterno, fotocamera, microfono o posizione.** L'esportazione della card immagine PNG utilizza esclusivamente la cache interna protetta dell'app tramite `FileProvider`.
 
-## 4. Condivisione con Terze Parti e Pubblicità
-AllenaMente **non** integra SDK pubblicitari, disattiva la raccolta dell'Advertising ID e **non** vende né cede i tuoi dati personali a broker o reti di marketing. L'infrastruttura cloud sicura è gestita tramite **Google Firebase** con crittografia in transito (HTTPS/TLS) e regole di isolamento rigoroso per utente.
+## 4. Elenco Completo SDK Esterni, Condivisione e Pubblicità
+AllenaMente **non** integra SDK pubblicitari, disattiva la raccolta dell'Advertising ID e **non** vende né cede i tuoi dati personali a broker o reti di marketing. Gli unici SDK integrati sono: **Firebase Authentication + Credential Manager**, **Cloud Firestore**, **Firebase AI Logic + App Check**, **Google Analytics for Firebase (opt-in)** e **Coil** (immagini profilo). L'infrastruttura cloud è protetta con crittografia in transito (HTTPS/TLS) e regole zero-trust per utente. Consulta anche i [Termini e Condizioni e Licenze](TERMS_AND_CONDITIONS.md).
 
 ## 5. Diritti dell'Utente (GDPR — UE 2016/679)
 Direttamente all'interno dell'app (*Impostazioni & Privacy*) puoi esercitare in autonomia i tuoi diritti:

@@ -63,9 +63,19 @@ class AllenaMenteViewModel(
     private val _analyticsEnabled = MutableStateFlow(analytics.isCollectionEnabled)
     val analyticsEnabled: StateFlow<Boolean> = _analyticsEnabled.asStateFlow()
 
+    private val _needsAnalyticsConsent = MutableStateFlow(!analytics.hasUserMadeConsentChoice)
+    val needsAnalyticsConsent: StateFlow<Boolean> = _needsAnalyticsConsent.asStateFlow()
+
+    fun respondToAnalyticsConsent(accepted: Boolean) {
+        analytics.recordConsentChoice(accepted)
+        _analyticsEnabled.value = analytics.isCollectionEnabled
+        _needsAnalyticsConsent.value = false
+    }
+
     fun setAnalyticsEnabled(enabled: Boolean) {
         analytics.setCollectionEnabled(enabled)
         _analyticsEnabled.value = analytics.isCollectionEnabled
+        _needsAnalyticsConsent.value = false
     }
 
     val todayDateKey: String = repository?.todayDateKey()
@@ -594,9 +604,11 @@ class AllenaMenteViewModel(
     fun deleteAllUserData(onDeleted: () -> Unit) {
         if (useLocalOnly) {
             analytics.logGdprDataDeleted("provisional")
+            analytics.resetConsent()
+            _analyticsEnabled.value = false
             localSessions.value = UiState.Success(emptyList())
             localDailyStats.value = UiState.Success(emptyList())
-            _snackbarMessage.value = "Sessione provvisoria azzerata."
+            _snackbarMessage.value = "Sessione provvisoria e preferenze azzerate."
             onDeleted()
             return
         }
@@ -604,6 +616,8 @@ class AllenaMenteViewModel(
             val res = repository!!.deleteAllUserData(currentUserId)
             res.onSuccess {
                 analytics.logGdprDataDeleted("google")
+                analytics.resetConsent()
+                _analyticsEnabled.value = false
                 _snackbarMessage.value = "Tutti i dati cloud e locali sono stati eliminati."
                 onDeleted()
             }.onFailure { err ->

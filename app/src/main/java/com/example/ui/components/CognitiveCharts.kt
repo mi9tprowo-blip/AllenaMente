@@ -171,7 +171,14 @@ fun PerformanceTimelineChart(
         return
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    val avgTimelineAccuracy = ordered.map { it.avgAccuracy }.average().toInt()
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics {
+                contentDescription = "Grafico andamento storico degli ultimi ${ordered.size} giorni, accuratezza media $avgTimelineAccuracy percento"
+            }
+    ) {
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()

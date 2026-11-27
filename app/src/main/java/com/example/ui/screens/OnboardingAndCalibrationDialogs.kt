@@ -16,13 +16,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -43,11 +48,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.R
 import com.example.data.model.AGE_COHORTS
 import com.example.engine.CorePuzzleGenerators
 import com.example.engine.ExpressiveFaceGenerator
@@ -59,11 +68,15 @@ import kotlinx.coroutines.delay
 @Composable
 fun OnboardingTermsDialog(
     initialName: String,
-    onComplete: (displayName: String, ageCohort: String) -> Unit
+    onOpenLegal: () -> Unit = {},
+    onComplete: (displayName: String, ageCohort: String, analyticsOptIn: Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var selectedCohort by remember { mutableStateOf("25-34") }
+    // All consents start strictly UNCHECKED (GDPR / Garante Privacy Italy)
     var acceptedTerms by remember { mutableStateOf(false) }
+    var confirmedAgeOrParentalConsent by remember { mutableStateOf(false) }
+    var analyticsOptIn by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = { /* Mandatory consent before play */ },
@@ -80,7 +93,7 @@ fun OnboardingTermsDialog(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .padding(22.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     text = "Benvenuto in AllenaMente",
@@ -88,7 +101,7 @@ fun OnboardingTermsDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Personalizza il tuo profilo ludico. Nessun dato clinico o pubblicitario viene raccolto.",
+                    text = "App 100% gratuita, senza pubblicità né costi nascosti. Personalizza il tuo profilo ludico.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -98,6 +111,7 @@ fun OnboardingTermsDialog(
                     onValueChange = { if (it.length <= 50) name = it },
                     label = { Text("Nome profilo") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("onboarding_name_input")
@@ -122,39 +136,179 @@ fun OnboardingTermsDialog(
                     }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                // Consent 1 (Mandatory, NOT pre-checked): Terms, Privacy & Non-Clinical Disclaimer
+                ConsentCheckboxCard(
+                    checked = acceptedTerms,
+                    onCheckedChange = { acceptedTerms = it },
+                    text = "Accetto i Termini e Condizioni e l'Informativa Privacy; comprendo che AllenaMente è un'app ludica e non uno strumento medico o diagnostico.",
+                    testTag = "onboarding_terms_checkbox"
+                )
+
+                // Consent 2 (Mandatory, NOT pre-checked): Under-14 Age / Parental Consent (Art. 2-quinquies Italy)
+                ConsentCheckboxCard(
+                    checked = confirmedAgeOrParentalConsent,
+                    onCheckedChange = { confirmedAgeOrParentalConsent = it },
+                    text = "Dichiaro di avere almeno 14 anni, oppure di utilizzare l'app con il consenso di un genitore o tutore legale.",
+                    testTag = "onboarding_age_checkbox"
+                )
+
+                // Consent 3 (Optional, NOT pre-checked): Anonymous Firebase Analytics
+                ConsentCheckboxCard(
+                    checked = analyticsOptIn,
+                    onCheckedChange = { analyticsOptIn = it },
+                    text = "Facoltativo: attiva statistiche anonime di utilizzo (Firebase Analytics senza Advertising ID né dati personali). Modificabile in ogni momento.",
+                    testTag = "onboarding_analytics_checkbox"
+                )
+
+                TextButton(
+                    onClick = onOpenLegal,
+                    modifier = Modifier
+                        .align(Alignment.Start)
+                        .testTag("onboarding_open_legal_button")
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { acceptedTerms = !acceptedTerms }
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = acceptedTerms,
-                            onCheckedChange = { acceptedTerms = it },
-                            modifier = Modifier.testTag("onboarding_terms_checkbox")
-                        )
-                        Text(
-                            text = "Comprendo che AllenaMente è un'app di benessere cognitivo e intrattenimento ludico, non uno strumento medico o diagnostico.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    Text(stringResource(R.string.privacy_link_button))
                 }
 
                 Button(
-                    onClick = { onComplete(name, selectedCohort) },
-                    enabled = acceptedTerms && name.isNotBlank(),
+                    onClick = { onComplete(name, selectedCohort, analyticsOptIn) },
+                    enabled = acceptedTerms && confirmedAgeOrParentalConsent && name.isNotBlank(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
                         .testTag("onboarding_continue_button")
                 ) {
                     Text("Inizia il Percorso", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConsentCheckboxCard(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    text: String,
+    testTag: String
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = checked,
+                    role = Role.Checkbox,
+                    onValueChange = onCheckedChange
+                )
+                .padding(10.dp)
+                .testTag(testTag),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = null
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+    }
+}
+
+/**
+ * GDPR / Garante Privacy compliant opt-in Analytics Consent Banner:
+ * - Zero pre-checked consents (analytics stays OFF until accepted)
+ * - Visually equal "Rifiuta" and "Accetta" buttons (no dark patterns)
+ */
+@Composable
+fun AnalyticsConsentDialog(
+    onAccept: () -> Unit,
+    onReject: () -> Unit,
+    onOpenPrivacyPolicy: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onReject,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.QueryStats,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.consent_banner_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Text(
+                    text = stringResource(R.string.consent_banner_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                TextButton(
+                    onClick = onOpenPrivacyPolicy,
+                    modifier = Modifier.testTag("analytics_consent_privacy_link")
+                ) {
+                    Text(stringResource(R.string.consent_banner_learn_more))
+                }
+
+                // Equal-prominence Reject and Accept actions (zero dark patterns)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onReject,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .testTag("analytics_consent_reject")
+                    ) {
+                        Text(
+                            text = stringResource(R.string.consent_banner_reject),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                    Button(
+                        onClick = onAccept,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .testTag("analytics_consent_accept")
+                    ) {
+                        Text(
+                            text = stringResource(R.string.consent_banner_accept),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                 }
             }
         }

@@ -26,11 +26,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.outlined.Business
 import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Copyright
 import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.FamilyRestroom
 import androidx.compose.material.icons.outlined.GppGood
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.MoneyOff
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.Button
@@ -41,16 +46,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -70,7 +80,9 @@ import kotlinx.coroutines.launch
 fun PrivacyPolicyScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    privacyDocumentUrl: String = stringResource(R.string.privacy_policy_url)
+    initialTab: Int = 0,
+    privacyDocumentUrl: String = stringResource(R.string.privacy_policy_url),
+    termsDocumentUrl: String = stringResource(R.string.terms_conditions_url)
 ) {
     BackHandler(onBack = onBack)
 
@@ -78,9 +90,11 @@ fun PrivacyPolicyScreen(
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, 1)) }
 
     val contactEmail = stringResource(R.string.privacy_contact_email)
-    val openErrorTemplate = stringResource(R.string.privacy_open_error, privacyDocumentUrl)
+    val activeUrl = if (selectedTab == 0) privacyDocumentUrl else termsDocumentUrl
+    val openErrorTemplate = stringResource(R.string.privacy_open_error, activeUrl)
 
     Scaffold(
         modifier = modifier
@@ -89,31 +103,47 @@ fun PrivacyPolicyScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.privacy_policy_title),
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("privacy_policy_back_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.privacy_back_description)
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.privacy_policy_title),
+                            style = MaterialTheme.typography.titleLarge
                         )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("privacy_policy_back_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.privacy_back_description)
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    )
                 )
-            )
+                PrimaryTabRow(selectedTabIndex = selectedTab) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text(stringResource(R.string.legal_tab_privacy)) },
+                        modifier = Modifier.testTag("legal_tab_privacy")
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text(stringResource(R.string.legal_tab_terms)) },
+                        modifier = Modifier.testTag("legal_tab_terms")
+                    )
+                }
+            }
         }
     ) { innerPadding ->
         Box(
@@ -184,11 +214,11 @@ fun PrivacyPolicyScreen(
                     }
                 }
 
-                // External Documentation Primary CTA (Google Play Store requirement)
+                // External Documentation Primary CTA (Google Play Store & EU legal requirement)
                 Button(
                     onClick = {
                         runCatching {
-                            uriHandler.openUri(privacyDocumentUrl)
+                            uriHandler.openUri(activeUrl)
                         }.onFailure {
                             scope.launch {
                                 snackbarHostState.showSnackbar(openErrorTemplate)
@@ -208,48 +238,73 @@ fun PrivacyPolicyScreen(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        text = stringResource(R.string.privacy_open_full_doc),
+                        text = stringResource(
+                            if (selectedTab == 0) R.string.privacy_open_full_doc else R.string.terms_open_full_doc
+                        ),
                         style = MaterialTheme.typography.labelLarge
                     )
                 }
 
-                // Privacy Summary Cards
-                PrivacySectionCard(
-                    icon = Icons.Outlined.CloudDone,
-                    title = stringResource(R.string.privacy_section_data_title),
-                    body = stringResource(R.string.privacy_section_data_body)
-                )
+                if (selectedTab == 0) {
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.CloudDone,
+                        title = stringResource(R.string.privacy_section_data_title),
+                        body = stringResource(R.string.privacy_section_data_body)
+                    )
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.Code,
+                        title = stringResource(R.string.privacy_section_sdk_title),
+                        body = stringResource(R.string.privacy_section_sdk_body)
+                    )
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.Lock,
+                        title = stringResource(R.string.privacy_section_permissions_title),
+                        body = stringResource(R.string.privacy_section_permissions_body)
+                    )
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.VerifiedUser,
+                        title = stringResource(R.string.privacy_section_security_title),
+                        body = stringResource(R.string.privacy_section_security_body)
+                    )
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.GppGood,
+                        title = stringResource(R.string.privacy_section_gdpr_title),
+                        body = stringResource(R.string.privacy_section_gdpr_body)
+                    )
+                } else {
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.MoneyOff,
+                        title = stringResource(R.string.terms_section_free_title),
+                        body = stringResource(R.string.terms_section_free_body)
+                    )
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.FamilyRestroom,
+                        title = stringResource(R.string.terms_section_minors_title),
+                        body = stringResource(R.string.terms_section_minors_body)
+                    )
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.Info,
+                        title = stringResource(R.string.privacy_section_disclaimer_title),
+                        body = stringResource(R.string.privacy_section_disclaimer_body)
+                    )
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.Copyright,
+                        title = stringResource(R.string.terms_section_licenses_title),
+                        body = stringResource(R.string.terms_section_licenses_body)
+                    )
+                    PrivacySectionCard(
+                        icon = Icons.Outlined.Business,
+                        title = stringResource(R.string.terms_section_company_title),
+                        body = stringResource(R.string.terms_section_company_body)
+                    )
+                }
 
-                PrivacySectionCard(
-                    icon = Icons.Outlined.Lock,
-                    title = stringResource(R.string.privacy_section_permissions_title),
-                    body = stringResource(R.string.privacy_section_permissions_body)
-                )
-
-                PrivacySectionCard(
-                    icon = Icons.Outlined.VerifiedUser,
-                    title = stringResource(R.string.privacy_section_security_title),
-                    body = stringResource(R.string.privacy_section_security_body)
-                )
-
-                PrivacySectionCard(
-                    icon = Icons.Outlined.GppGood,
-                    title = stringResource(R.string.privacy_section_gdpr_title),
-                    body = stringResource(R.string.privacy_section_gdpr_body)
-                )
-
-                PrivacySectionCard(
-                    icon = Icons.Outlined.Info,
-                    title = stringResource(R.string.privacy_section_disclaimer_title),
-                    body = stringResource(R.string.privacy_section_disclaimer_body)
-                )
-
-                // Direct Privacy Contact CTA
+                // Direct Privacy & Legal Contact CTA
                 OutlinedButton(
                     onClick = {
                         val mailIntent = Intent(Intent.ACTION_SENDTO).apply {
                             data = Uri.parse("mailto:$contactEmail")
-                            putExtra(Intent.EXTRA_SUBJECT, "AllenaMente — Richiesta Privacy / GDPR")
+                            putExtra(Intent.EXTRA_SUBJECT, "AllenaMente — Richiesta Privacy / Legale / GDPR")
                         }
                         runCatching {
                             context.startActivity(mailIntent)
@@ -278,7 +333,7 @@ fun PrivacyPolicyScreen(
                 }
 
                 Text(
-                    text = privacyDocumentUrl,
+                    text = activeUrl,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier

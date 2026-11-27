@@ -218,8 +218,8 @@ fun AuthScreen(
                     )
                     AuthFeatureRow(
                         icon = Icons.Rounded.VerifiedUser,
-                        title = "Zero Tracker • GDPR Completo",
-                        subtitle = "Esportazione JSON e cancellazione integrale dei dati in 2 tocchi."
+                        title = "100% Gratuita • Zero Pubblicità • GDPR",
+                        subtitle = "Nessun costo nascosto, statistiche solo su consenso, export JSON e cancellazione in 2 tocchi."
                     )
                 }
             }

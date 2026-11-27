@@ -82,6 +82,7 @@ import com.example.engine.CognitiveBalanceEngine
 import com.example.engine.DuelLinkCodec
 import com.example.engine.Mulberry32
 import com.example.ui.components.AllenaMenteTutorialDialog
+import com.example.ui.screens.AnalyticsConsentDialog
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.GameSessionScreen
 import com.example.ui.screens.GymCatalogScreen
@@ -308,6 +309,7 @@ private fun AuthenticatedAllenaMenteShell(
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
     val showCalibration by viewModel.showCalibrationModal.collectAsStateWithLifecycle()
     val analyticsEnabled by viewModel.analyticsEnabled.collectAsStateWithLifecycle()
+    val needsAnalyticsConsent by viewModel.needsAnalyticsConsent.collectAsStateWithLifecycle()
 
     val profile = (profileUi as? UiState.Success)?.data ?: UserProfile(userId = viewModel.currentUserId)
     val sessions = (sessionsUi as? UiState.Success)?.data.orEmpty()
@@ -609,14 +611,22 @@ private fun AuthenticatedAllenaMenteShell(
                             }
                         }
 
-                        // First-launch Onboarding & Non-Clinical Terms Consent
+                        // First-launch Onboarding, Under-14 & Non-Clinical Terms Consent
                         val loadedProfile = (profileUi as UiState.Success).data
                         if (loadedProfile != null && !loadedProfile.termsAccepted) {
                             OnboardingTermsDialog(
                                 initialName = loadedProfile.displayName,
-                                onComplete = { name, cohort ->
+                                onOpenLegal = { showPrivacyPolicy = true },
+                                onComplete = { name, cohort, optInAnalytics ->
+                                    viewModel.respondToAnalyticsConsent(optInAnalytics)
                                     viewModel.acceptOnboarding(name, cohort)
                                 }
+                            )
+                        } else if (needsAnalyticsConsent) {
+                            AnalyticsConsentDialog(
+                                onAccept = { viewModel.respondToAnalyticsConsent(true) },
+                                onReject = { viewModel.respondToAnalyticsConsent(false) },
+                                onOpenPrivacyPolicy = { showPrivacyPolicy = true }
                             )
                         } else if (showCalibration) {
                             InitialCalibrationDialog(
